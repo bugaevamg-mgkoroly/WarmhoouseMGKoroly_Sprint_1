@@ -32,6 +32,44 @@ services:
     networks:
       - smarthome-network
 
+  monolith:
+    build: ./monolith
+    ports:
+      - "80:80"
+    depends_on:
+      - postgres
+      - rabbitmq
+      - temperature-api
+      - telemetry-service
+      - devices-service
+  
+  telemetry-service:
+    build: ./telemetry-service
+    ports:
+      - "8080:8080"
+    depends_on:
+      - rabbitmq
+
+  devices-service:
+    build: ./devices-service
+    ports:
+      - "5000:5000"
+    depends_on:
+      - rabbitmq
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "15672:15672"  # Веб‑интерфейс (логин: guest/guest)
+      - "5672:5672"    # AMQP
+    volumes:
+      - ./broker/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   app:
     build:
       context: ./smart_home
