@@ -286,26 +286,28 @@ FK_NOTE .right. device
 - HTTP/REST — для синхронных запросов «запрос‑ответ».
 - Асинхронные сообщения через Event Bus (Kafka/RabbitMQ) — для событийно‑ориентированного взаимодействия.
 
-1. HTTP/REST (синхронный обмен)
-Где применяется:
+#### 1. HTTP/REST (синхронный обмен)
+
+##### Где применяется:
 - Взаимодействие клиент‑приложение ↔ API Gateway.
 - Запросы от API Gateway к сервисным микросервисам (Service‑Control, Service‑Monitoring и др.).
 - Прямые вызовы между сервисами, где нужен мгновенный ответ (например, Service‑Control → Service‑Monitoring: «дай текущую температуру»).
 
-Почему именно REST:
+##### Почему именно REST:
 - Простота и универсальность. HTTP‑методы (GET, POST, PUT, DELETE) интуитивно понятны, поддерживаются всеми языками и фреймворками.
 - Кеширование и идемпотентность. Методы GET и PUT позволяют кешировать ответы и гарантировать идемпотентность операций.
 - Широкая экосистема. Инструменты для мониторинга (Prometheus), трассировки (Jaeger), документации (OpenAPI/Swagger) работают «из коробки».
 - Поддержка API Gateway. Kong/Traefik легко маршрутизируют и защищают REST‑эндпоинты (JWT, rate limiting).
 
-Примеры вызовов:
+##### Примеры вызовов:
 
 GET /api/v1/devices/{id}/temperature → от Service‑Control к Service‑Monitoring.
 
 POST /api/v1/service-requests → от клиента через API Gateway к Service‑ServiceDesk.
 
-2. Асинхронные сообщения (Event Bus)
-Где применяется:
+#### 2. Асинхронные сообщения (Event Bus)
+
+##### Где применяется:
 - События типа «что‑то произошло» без ожидания ответа:
 temperature.updated → запись в архив (Service‑History).
 alarm → отправка уведомления (Service‑Notification).
@@ -314,320 +316,257 @@ service.request.created → оповещение пользователя и т�
 - Распределённые транзакции (например, обновление статуса устройства + создание заявки).
 - Отложенные задачи (повторная отправка уведомлений, фоновая агрегация данных).
 
-Почему Kafka/RabbitMQ:
+##### Почему Kafka/RabbitMQ:
 - Отказоустойчивость. Сообщения сохраняются в очереди до обработки, даже если сервис временно недоступен.
 - Масштабируемость. Несколько экземпляров сервиса могут потреблять сообщения параллельно (например, 3 инстанса Service‑Notification обрабатывают уведомления).
 - Развязка сервисов. Производители и потребители не зависят друг от друга: можно добавлять новые сервисы‑подписчики без изменения кода отправителей.
 - Гарантия доставки. Поддержка стратегий at‑least‑once или exactly‑once (в Kafka).
 - Логирование событий. История сообщений позволяет анализировать цепочки событий (например, «как развивалась аварийная ситуация»).
 
-Примеры событий:
-
+##### Примеры событий:
+```json
 {"event": "temperature.updated", "device_id": "abc123", "temp": 25.5, "timestamp": "2025-01-01T12:00:00Z"}
+```
 
+```json
 {"event": "alarm", "device_id": "abc123", "type": "overheat", "severity": "critical"}
+```
 
-Почему не только REST или только Event Bus?
+#### Почему не только REST или только Event Bus?
 - Только REST → риск «каскадных сбоев» (если один сервис тормозит, блокируются все зависимые), жёсткая связность, перегрузка сети частыми опросами.
 - Только Event Bus → сложность отладки (нет явных запросов/ответов), избыточность для простых операций (например, «получить текущую температуру»).
 
-Комбинация решает эти проблемы:
+#### Комбинация решает эти проблемы:
 - REST — для быстрых, предсказуемых операций.
 - Event Bus — для фоновых, критичных к надёжности задач.
 
-Дополнительные технологии (опционально)
-gRPC — для высокопроизводительных внутренних вызовов между сервисами (например, Service‑Control ↔ Service‑Monitoring), где важна скорость и низкая задержка.
-
-WebSockets — для push‑уведомлений клиенту (например, мгновенное оповещение об аварии).
-
-Гибридная модель API:
+#### Гибридная модель API:
 - REST — основной протокол для клиентских запросов и синхронных межсервисных вызовов.
 - Event Bus (Kafka/RabbitMQ) — для асинхронных событий и распределённых процессов.
 
-Это обеспечивает:
+##### Это обеспечивает:
 - баланс между скоростью, надёжностью и масштабируемостью;
 - гибкость при добавлении новых сервисов;
 - устойчивость к временным сбоям.
 
 ### 2. Документация API
 
-Ниже приведены спецификации API для микросервисов системы «Тёплый дом» в формате OpenAPI 3.0 (Swagger) для REST‑конечных точек и AsyncAPI 2.4.0 для событийной шины.
-1. REST API (OpenAPI 3.0)
-Сервис: Service‑Control
-Файл: service-control-openapi.yaml
+Представлена спецификация API для микросервисов системы в двух форматах:
+- OpenAPI 3.0 (Swagger) — для REST‑конечных точек;
+- AsyncAPI 2.4.0 — для событийной шины (Kafka).
 
-```yaml
-yaml
-openapi: 3.0.3
-info:
-  title: Service‑Control API
-  version: 1.0.0
-  description: Управление отоплением: команды, расписания, проверка устройств.
-servers:
-  - url: https://api.warmhome.example.com/control
+#### 1. REST API (OpenAPI 3.0)
+##### Сервис: Service‑Control
+**Файл спецификации:** service-control-openapi.yaml
+**Базовый URL:** https://api.warmhome.example.com/control
 
-paths:
-  /devices/{deviceId}/target-temperature:
-    put:
-      summary: Установить целевую температуру
-      operationId: setTargetTemperature
-      parameters:
-        - name: deviceId
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                temperature:
-                  type: number
-                  format: float
-                  minimum: -30
-                  maximum: 60
-      responses:
-        '200':
-          description: Температура установлена
-        '400':
-          description: Некорректное значение температуры
-        '404':
-          description: Устройство не найдено
+##### 1.1. Установка целевой температуры
+**Endpoint:** PUT /devices/{deviceId}/target-temperature
 
-  /schedules:
-    post:
-      summary: Создать расписание работы устройства
-      operationId: createSchedule
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [deviceId, startTime, endTime, targetTemp]
-              properties:
-                deviceId:
-                  type: string
-                startTime:
-                  type: string
-                  format: date-time
-                endTime:
-                  type: string
-                  format: date-time
-                targetTemp:
-                  type: number
-                  format: float
-      responses:
-        '201':
-          description: Расписание создано
-        '400':
-          description: Ошибки валидации
+**operationId:** setTargetTemperature
+
+**Описание:** Устанавливает целевую температуру для указанного устройства.
+
+**Параметры:**
+
+	- deviceId (path, обязательный) — идентификатор устройства.
+
+**Тело запроса (application/json):**
+
+```json
+{
+  "temperature": 22.5
+}
 ```
 
-Сервис: Service‑Monitoring
-Файл: service-monitoring-openapi.yaml
+	- Тип: число (number), формат float.
 
-```yaml
-yaml
-openapi: 3.0.3
-info:
-  title: Service‑Monitoring API
-  version: 1.0.0
-  description: Опрос датчиков, фильтрация шумов, кэширование.
-servers:
-  - url: https://api.warmhome.example.com/monitoring
+	- Допустимый диапазон: от −30 до 60.
 
-paths:
-  /devices/{deviceId}/current-temperature:
-    get:
-      summary: Получить текущую температуру с датчика
-      operationId: getCurrentTemperature
-      parameters:
-        - name: deviceId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Температура получена
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  temperature:
-                    type: number
-                    format: float
-                  timestamp:
-                    type: string
-                    format: date-time
-        '404':
-          description: Датчик не найден
+**Ответы:**
+- 200 — Температура установлена.
+- 400 — Некорректное значение температуры.
+- 404 — Устройство не найдено.
+
+##### 1.2. Создание расписания работы устройства
+**Endpoint:** POST /schedules
+**operationId:** createSchedule
+**Описание:** Создаёт расписание работы устройства на указанный период.
+
+**Тело запроса (application/json):**
+
+```json
+{
+  "deviceId": "dev-001",
+  "startTime": "2026-01-12T08:00:00Z",
+  "endTime": "2026-01-12T22:00:00Z",
+  "targetTemp": 21.0
+}
 ```
 
-Сервис: Service‑ServiceDesk
-Файл: service-servicedesk-openapi.yaml
-```yaml
-yaml
-openapi: 3.0.3
-info:
-  title: Service‑ServiceDesk API
-  version: 1.0.0
-  description: Заявки на выезд, планирование, фиксация работ.
-servers:
-  - url: https://api.warmhome.example.com/servicedesk
+	- startTime, endTime: строки в формате date-time (ISO 8601).
 
-paths:
-  /service-requests:
-    post:
-      summary: Создать заявку на обслуживание
-      operationId: createServiceRequest
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [deviceId, title, description]
-              properties:
-                deviceId:
-                  type: string
-                title:
-                  type: string
-                  maxLength: 200
-                description:
-                  type: string
-                priority:
-                  type: integer
-                  minimum: 1
-                  maximum: 5
-      responses:
-        '201':
-          description: Заявка создана
-        '400':
-          description: Ошибки валидации
+	- targetTemp: число (number), формат float.
 
-    get:
-      summary: Получить список заявок
-      operationId: listServiceRequests
-      parameters:
-        - name: status
-          in: query
-          schema:
-            type: string
-            enum: [PENDING, IN_PROGRESS, COMPLETED, CANCELLED]
-      responses:
-        '200':
-          description: Список заявок
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: string
-                    title:
-                      type: string
-                    status:
-                      type: string
+**Ответы:**
+- 201 — Расписание создано.
+- 400 — Ошибки валидации (например, неверный формат даты).
+
+#### Сервис: Service‑Monitoring
+**Файл спецификации:** service-monitoring-openapi.yaml
+**Базовый URL:** https://api.warmhome.example.com/monitoring
+
+##### 1.3. Получение текущей температуры
+**Endpoint:** GET /devices/{deviceId}/current-temperature
+**operationId:** getCurrentTemperature
+**Описание:** Возвращает текущую температуру с указанного датчика.
+
+**Параметры:**
+
+	- deviceId (path, обязательный) — идентификатор датчика.
+
+**Ответ (200, application/json):**
+
+```json
+{
+  "temperature": 23.1,
+  "timestamp": "2026-01-12T13:24:22Z"
+}
 ```
 
-2. Event Bus API (AsyncAPI 2.4.0)
-Файл: event-bus-asyncapi.yaml
-```yaml
-yaml
-asyncapi: 2.4.0
-info:
-  title: WarmHome Event Bus
-  version: 1.0.0
-  description: Асинхронные события системы «Тёплый дом».
+	- temperature: число (number), формат float.
 
-servers:
-  kafka:
-    url: kafka://broker.warmhome.example.com:9092
-    protocol: kafka
+	- timestamp: строка в формате date-time (ISO 8601).
 
-channels:
-  temperature.updated:
-    subscribe:
-      summary: Событие обновления температуры
-      message:
-        payload:
-          type: object
-          properties:
-            deviceId:
-              type: string
-            temperature:
-              type: number
-              format: float
-            timestamp:
-              type: string
-              format: date-time
+**Ответы:**
+- 200 — Температура получена.
+- 404 — Датчик не найден.
 
-  alarm:
-    subscribe:
-      summary: Событие аварийной ситуации
-      message:
-        payload:
-          type: object
-          properties:
-            deviceId:
-              type: string
-            type:
-              type: string
-              enum: [overheat, freeze, communication_loss]
-            severity:
-              type: string
-              enum: [low, medium, high, critical]
-            timestamp:
-              type: string
-              format: date-time
+#### Сервис: Service‑ServiceDesk
+**Файл спецификации:** service-servicedesk-openapi.yaml
+**Базовый URL:** https://api.warmhome.example.com/servicedesk
 
-  service.request.created:
-    subscribe:
-      summary: Событие создания заявки на обслуживание
-      message:
-        payload:
-          type: object
-          properties:
-            requestId:
-              type: string
-            deviceId:
-              type: string
-            title:
-              type: string
-            timestamp:
-              type: string
-              format: date-time
+##### 1.4. Создание заявки на обслуживание
+**Endpoint:** POST /service-requests
+**operationId:** createServiceRequest
+**Описание:** Создаёт новую заявку на обслуживание.
+
+**Тело запроса (application/json):**
+
+```json
+{
+  "deviceId": "dev-002",
+  "title": "Неисправность радиатора",
+  "description": "Описание проблемы...",
+  "priority": 3
+}
 ```
 
-Как использовать
-Для REST API (OpenAPI):
+	- title: строка, макс. длина 200 символов.
 
-Загрузите YAML‑файлы в  для визуализации и тестирования.
+	- priority: целое число (integer) от 1 до 5.
 
-Сгенерируйте клиентский код (на Go, Python, JS и др.) через .
+**Ответы:**
+- 201 — Заявка создана.
+- 400 — Ошибки валидации (например, отсутствующее поле).
 
-Для Event Bus (AsyncAPI):
+##### 1.5. Получение списка заявок
+**Endpoint:** GET /service-requests
+**operationId:** listServiceRequests
+**Описание:** Возвращает список заявок с возможностью фильтрации по статусу.
 
-Используйте  для просмотра схемы событий.
+**Параметры запроса (query):**
+	 - status: строка, возможные значения: PENDING, IN_PROGRESS, COMPLETED, CANCELLED.
 
-Настройте консьюмеры/продюсеры в сервисах на основе описанных каналов (temperature.updated, alarm и др.).
+**Ответ (200, application/json):**
 
-Примечания
-Версионирование: Все API имеют версию 1.0.0. В будущем добавляйте новые версии без нарушения совместимости.
+```json
+[
+  {
+    "id": "req-001",
+    "title": "Неисправность радиатора",
+    "status": "PENDING"
+  }
+]
+```
 
-Безопасность: Для REST API требуется JWT‑аутентификация (укажите в securitySchemes при необходимости).
+**Ответы:**
+- 200 — Список заявок.
 
-Валидация: Схема OpenAPI включает ограничения (minimum, maximum, enum), которые можно использовать для автоматической валидации запросов.
+#### 2. Event Bus API (AsyncAPI 2.4.0)
+**Файл спецификации:** event-bus-asyncapi.yaml
+**Сервер (Kafka):** kafk://broker.warmhome.example.com:9092
 
-Формат дат: Все временные метки в формате ISO 8601 (YYYY‑MM‑DDTHH:MM:SSZ).
+##### 2.1. Событие: обновление температуры
+**Канал:** temperature.updated
+**Описание:** Публикуется при изменении температуры на устройстве.
+
+**Структура сообщения (payload):**
+
+```json
+{
+  "deviceId": "dev-001",
+  "temperature": 22.8,
+  "timestamp": "2026-01-12T13:24:22Z"
+}
+```
+
+	 - temperature: число (number), формат float.
+
+	 - timestamp: строка в формате date-time (ISO 8601).
+
+##### Newton.2. Событие: аварийная ситуация
+**Канал:** alarm
+**Описание:** Публикуется при обнаружении аварийной ситуации.
+
+**Структура сообщения (payload):**
+
+```json
+{
+  "deviceId": "dev-003",
+  "type": "overheat",
+  "severity": "high",
+  "timestamp": "2026-01-12T13:24:22Z"
+}
+```
+
+	- type: строка, возможные значения: overheat, freeze, communication_loss.
+	
+	- severity: строка, возможные значения: low, medium, high, critical.
+
+##### 2.3. Событие: создание заявки на обслуживание
+**Канал:** service.request.created
+**Описание:** Публикуется при создании новой заявки.
+
+**Структура сообщения (payload):**
+
+```json
+{
+  "requestId": "req-002",
+  "deviceId": "dev-004",
+  "title": "Замена термостата",
+  "timestamp": "2026-01-12T13:24:22Z"
+}
+```
+
+#### Примечания
+**Форматы данных:**
+- **Даты и время:** ISO 8601 (YYYY-MM-DDTHH:MM:SSZ).
+- **Числа с плавающей точкой:** float.
+- **Целые числа:** integer.
+
+**HTTP‑статусы:**
+- 200 / 201 — успешный ответ.
+- 400 — ошибка клиента (невалидные данные).
+- 404 — ресурс не найден.
+
+**Асинхронные события:**
+- Все события публикуются в Kafka.
+- Подписчики должны обрабатывать сообщения согласно схеме payload.
+
+**Расположение спецификаций:**
+- OpenAPI: папка /api-specs/openapi/.
+- AsyncAPI: папка /api-specs/asyncapi/.
 
 # Задание 5. Работа с docker и docker-compose
 
