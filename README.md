@@ -169,86 +169,19 @@
 
 [Диаграмма контейнеров](https://disk.yandex.ru/d/2n8djUZydVa7hg)
 
-@startuml C4_Container
-!include <C4/C4_Container>
-
-
-Container(api_gateway, "API Gateway", "Go, Kong/Traefik", "Единая точка входа, аутентификация (JWT), маршрутизация")
-Container(control_svc, "Service‑Control", "Go", "Управление отоплением: команды, расписания, проверка устройств")
-Container(monitoring_svc, "Service‑Monitoring", "Go", "Опрос датчиков, фильтрация шумов, кэширование")
-Container(history_svc, "Service‑History", "Go, PostgreSQL", "Хранение и агрегация исторических данных")
-Container(servicedesk_svc, "Service‑ServiceDesk", "Go, PostgreSQL", "Заявки на выезд, планирование, фиксация работ")
-Container(notification_svc, "Service‑Notification", "Go", "Отправка push/email, шаблоны, повторные попытки")
-ContainerDb(postgres_main, "PostgreSQL (основная БД)", "SQL", "Таблицы: devices, schedules, service_requests и др.")
-Container(redis_cache, "Redis", "Кэш текущих показаний температуры")
-Container(event_bus, "Event Bus", "Kafka/RabbitMQ", "Асинхронная коммуникация между сервисами")
-Container(config_svc, "Config Service", "Consul", "Централизованная конфигурация (интервалы, пороги)")
-
-
-System_Boundary(c1, "Экосистема «Тёплый дом»") {
-  Rel(api_gateway, control_svc, "HTTP/REST, gRPC")
-  Rel(api_gateway, monitoring_svc, "HTTP/REST")
-  Rel(api_gateway, history_svc, "HTTP/REST")
-  Rel(api_gateway, servicedesk_svc, "HTTP/REST")
-  Rel(api_gateway, notification_svc, "HTTP/REST")
-
-
-  Rel(control_svc, monitoring_svc, "gRPC: запрос текущей температуры")
-  Rel(control_svc, event_bus, "Pub: command.executed, alarm")
-  Rel(monitoring_svc, redis_cache, "Чтение/запись кэша")
-  Rel(monitoring_svc, event_bus, "Pub: temperature.updated")
-  Rel(event_bus, history_svc, "Sub: temperature.updated → запись в архив")
-  Rel(event_bus, notification_svc, "Sub: alarm → отправка уведомления")
-  Rel(servicedesk_svc, event_bus, "Pub: service.request.created")
-  Rel(event_bus, notification_svc, "Sub: service.request.created → уведомление пользователя и мастера")
-  Rel(control_svc, postgres_main, "SQL: чтение/запись устройств и расписаний")
-  Rel(servicedesk_svc, postgres_main, "SQL: чтение/запись заявок и специалистов")
-  Rel(history_svc, postgres_main, "SQL: запись исторических данных")
-  Rel(config_svc, control_svc, "Получение конфигураций")
-  Rel(config_svc, monitoring_svc, "Получение конфигураций")
-}
-
-@enduml
-
 **Диаграмма компонентов (Components)**
 
 [Диаграмма компонентов](https://disk.yandex.ru/d/4XTR4YuZnn8LAg)
-
-@startuml
-!include <C4/C4_Component.puml>
-
-Component(temp_controller, "TemperatureController", "Go", "Обработка команд установки температуры")
-Component(schedule_manager, "ScheduleManager", "Go", "Управление расписаниями работы")
-Component(safety_checker, "SafetyChecker", "Go", "Контроль аварийных ситуаций (перегрев, замерзание)")
-Component(device_commander, "DeviceCommander", "Go", "Формирование и отправка команд устройствам")
-Component(validator, "Validator", "Go", "Проверка диапазонов температуры, прав доступа")
-
-System_Boundary(c1, "Service‑Control") {
-  Rel(temp_controller, validator, "Вызов: проверка допустимости температуры")
-  Rel(temp_controller, device_commander, "Передача команды на устройство")
-  Rel(schedule_manager, temp_controller, "Установка целевой температуры по расписанию")
-  Rel(safety_checker, temp_controller, "Сигнал: аварийное отключение")
-  Rel(device_commander, external_sensors, "gRPC/HTTP: отправка команды")
-}
-
-@enduml
 
 **Диаграмма кода (Code)**
 
 [Диаграмма кода](https://disk.yandex.ru/d/73QUEChvoVaMTQ)
 
-@startuml C4_Code_TempController
-class TemperatureController {
-  + SetTargetTemp(deviceID: string, temp: float64) error
-  + GetCurrentTemp(deviceID: string) (float64, error)
-  - validateTempRange(temp: float64) bool
-  - sendCommandToDevice(deviceID: string, cmd: string) error
-}
-
 # Задание 3. Разработка ER-диаграммы
 
 [ER-модель](https://disk.yandex.ru/d/80D4UPzbPV-khw)
 
+```c4
 @startuml ER_Model_WarmHome
 !include <C4/C4_Container.puml>
 
@@ -406,7 +339,6 @@ gRPC — для высокопроизводительных внутренни�
 
 WebSockets — для push‑уведомлений клиенту (например, мгновенное оповещение об аварии).
 
-Итог
 Гибридная модель API:
 - REST — основной протокол для клиентских запросов и синхронных межсервисных вызовов.
 - Event Bus (Kafka/RabbitMQ) — для асинхронных событий и распределённых процессов.
@@ -423,6 +355,7 @@ WebSockets — для push‑уведомлений клиенту (наприм
 Сервис: Service‑Control
 Файл: service-control-openapi.yaml
 
+```yaml
 yaml
 openapi: 3.0.3
 info:
