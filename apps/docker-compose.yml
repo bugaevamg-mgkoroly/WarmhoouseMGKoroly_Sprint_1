@@ -84,7 +84,7 @@ services:
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/smarthome
       - TEMPERATURE_API_URL=http://temperature-api:8081
     ports:
-      - "8080:8080"
+      - "8030:8030"
     restart: unless-stopped
     networks:
       - smarthome-network
