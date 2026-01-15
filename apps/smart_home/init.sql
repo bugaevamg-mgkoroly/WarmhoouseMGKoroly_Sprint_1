@@ -21,3 +21,7 @@ CREATE TABLE IF NOT EXISTS sensors (
 CREATE INDEX IF NOT EXISTS idx_sensors_type ON sensors(type);
 CREATE INDEX IF NOT EXISTS idx_sensors_location ON sensors(location);
 CREATE INDEX IF NOT EXISTS idx_sensors_status ON sensors(status);
+
+
+CREATE USER postgres WITH PASSWORD 'postgers';
+GRANT ALL PRIVILEGES ON DATABASE smarthome TO postgres;
