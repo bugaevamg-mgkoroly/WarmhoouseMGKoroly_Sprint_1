@@ -1,0 +1,153 @@
+openapi: 3.0.3
+info:
+  title: Service‑Monitoring API
+  version: 1.0.0
+  description: |
+    API для мониторинга состояния устройств и сбора метрик.
+    - Проверка доступности устройств.
+    - Получение метрик (температура, нагрузка, статус).
+    - Алерты и статусы сервисов.
+
+servers:
+  - url: https://api.warmhome.example.com/monitoring
+    description: Основной сервер API
+
+paths:
+  /devices/{deviceId}/status:
+    get:
+      summary: Получить статус устройства
+      operationId: getDeviceStatus
+      description: Возвращает текущий статус устройства (онлайн/офлайн, ошибки, время последнего обновления).
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Уникальный идентификатор устройства
+      responses:
+        '200':
+          description: Статус устройства
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deviceId:
+                    type: string
+                  status:
+                    type: string
+                    enum: [online, offline, error]
+                  lastUpdate:
+                    type: string
+                    format: date-time
+                  errorCode:
+                    type: integer
+                    nullable: true
+        '404':
+          description: Устройство не найдено
+
+  /metrics:
+    get:
+      summary: Получить метрики системы
+      operationId: getSystemMetrics
+      description: Возвращает агрегированные метрики (нагрузка, температура, доступность).
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Начало периода (ISO 8601)
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Конец периода (ISO 8601)
+      responses:
+        '200':
+          description: Метрики системы
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cpuLoad:
+                    type: number
+                    format: float
+                    minimum: 0
+                    maximum: 100
+                  memoryUsage:
+                    type: integer
+                    description: В мегабайтах
+                  temperature:
+                    type: number
+                    format: float
+                  uptime:
+                    type: integer
+                    description: Время работы в секундах
+        '400':
+          description: Некорректные параметры запроса
+
+  /alerts:
+    get:
+      summary: Получить список алертов
+      operationId: listAlerts
+      description: Возвращает активные алерт-события за указанный период.
+      parameters:
+        - name: severity
+          in: query
+          schema:
+            type: string
+            enum: [info, warning, critical]
+          description: Уровень серьёзности
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Список алертов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    alertId:
+                      type: string
+                    severity:
+                      type: string
+                      enum: [info, warning, critical]
+                    message:
+                      type: string
+                    timestamp:
+                      type: string
+                      format: date-time
+        '400':
+          description: Ошибка валидации параметров
+
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+      required:
+        - code
+        - message
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - BearerAuth: []

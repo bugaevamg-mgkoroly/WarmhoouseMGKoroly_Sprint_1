@@ -1,0 +1,38 @@
+openapi: 3.0.3
+info:
+  title: Service‑Control API
+  version: 1.0.0
+  description: Управление отоплением: команды, расписания, проверка устройств.
+servers:
+  - url: https://api.warmhome.example.com/control
+
+paths:
+  /devices/{deviceId}/target-temperature:
+    put:
+      summary: Установить целевую температуру
+      operationId: setTargetTemperature
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                temperature:
+                  type: number
+                  format: float
+                  minimum: -30
+                  maximum: 60
+      responses:
+        '200':
+          description: Температура установлена
+        '400':
+          description: Некорректное значение температуры
+        '404':
+          description: Устройство не найдено

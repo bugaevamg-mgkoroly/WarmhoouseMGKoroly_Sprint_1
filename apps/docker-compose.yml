@@ -4,10 +4,71 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: smarthome-postgres
-  ## тут нужно добавить настройки
+    environment:
+      POSTGRES_DB: smart_home
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    volumes:
+      - ./smart_home/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d smart_home"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - smarthome-network
+
 
   temperature-api:
-  ## тут нужно добавить приложение
+    build: ./temperature-api
+    ports:
+      - "8081:8081"
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    networks:
+      - smarthome-network
+
+  monolith:
+    build: ./monolith
+    ports:
+      - "80:80"
+    depends_on:
+      - postgres
+      - rabbitmq
+      - temperature-api
+      - telemetry-service
+      - devices-service
+  
+  telemetry-service:
+    build: ./telemetry-service
+    ports:
+      - "8080:8080"
+    depends_on:
+      - rabbitmq
+
+  devices-service:
+    build: ./devices-service
+    ports:
+      - "5000:5000"
+    depends_on:
+      - rabbitmq
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "15672:15672"  # Веб‑интерфейс (логин: guest/guest)
+      - "5672:5672"    # AMQP
+    volumes:
+      - ./broker/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   app:
     build:
@@ -23,7 +84,7 @@ services:
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/smarthome
       - TEMPERATURE_API_URL=http://temperature-api:8081
     ports:
-      - "8080:8080"
+      - "8030:8030"
     restart: unless-stopped
     networks:
       - smarthome-network

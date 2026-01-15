@@ -1,0 +1,28 @@
+asyncapi: 2.4.0
+info:
+  title: WarmHome Event Bus
+  version: 1.0.0
+  description: Асинхронные события системы «Тёплый дом».
+
+
+servers:
+  kafka:
+    url: kafka://broker.warmhome.example.com:9092
+    protocol: kafka
+
+channels:
+  temperature.updated:
+    subscribe:
+      summary: Событие обновления температуры
+      message:
+        payload:
+          type: object
+          properties:
+            deviceId:
+              type: string
+            temperature:
+              type: number
+              format: float
+            timestamp:
+              type: string
+              format: date-time
